@@ -1,24 +1,10 @@
-### Setup
+# PCL
+Planet v planet /mix tech with a twist! 
 
-Clone this repository first.
-To edit the plugin display name and other data, take a look at `plugin.json`.
-Edit the name of the project itself by going into `settings.gradle`.
-
-### Basic Usage
-
-See `src/example/ExamplePlugin.java` for some basic commands and event handlers.  
-Every main plugin class must extend `Plugin`. Make sure that `plugin.json` points to the correct main plugin class.
-
-Please note that the plugin system is in beta, and as such is subject to changes.
-
-### Building a Jar
-
-`gradlew jar` / `./gradlew jar`
-
-Output jar should be in `build/libs`.
-
-
-### Installing
-
-Simply place the output jar from the step above in your server's `config/mods` directory and restart the server.
-List your currently installed plugins/mods by running the `mods` command.
+# for mod devs:
+add a `Core.settings.put(<see bellow>, <Data>)` for the following to add support
+- `pcl-blacklist-<modname>`: blacklist for floors to not get replaced
+- `pcl-spread-<modname/single planet name>`: a single floor name that will be cosidered the floor for a mod's planet/ singular planet
+- `pcl-ores-<modname/single planet name>` : what ores will change into depending on floor/block in this order:
+  - (any floor), metal floor1, metal floor2, ... metal floor6, damaged metal floor, dark panel 1, ... dark panel6, (any wall), dark metal, dirt wall, snow wall, salt wall, regolith wall, stone wall, ferric stone wall
+  - leave blank or just `","` and those cases will leave the ore as is

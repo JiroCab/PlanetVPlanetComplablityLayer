@@ -1,8 +1,14 @@
-apply plugin: "java"
+import fr.xpdustry.toxopid.spec.ModPlatform
+
+plugins {
+    id 'java'
+    id("fr.xpdustry.toxopid") version "3.2.0"
+    id 'maven-publish'
+}
 
 version '1.0'
 
-sourceCompatibility = JavaVersion.VERSION_16
+sourceCompatibility = JavaVersion.VERSION_17
 
 sourceSets.main.java.srcDirs = ["src"]
 
@@ -12,13 +18,20 @@ compileTestJava.options.encoding = "UTF-8"
 repositories{
     mavenCentral()
     maven{ url "https://raw.githubusercontent.com/Zelaux/MindustryRepo/master/repository" }
-    maven{ url 'https://www.jitpack.io' }
+    maven { url 'https://jitpack.io' }
+    anukenJitpack()
 }
 
 ext{
     //the build number that this plugin is made for
-    mindustryVersion = 'v145'
+    mindustryVersion = 'v149'
     jabelVersion = "93fde537c7"
+}
+
+toxopid {
+    compileVersion.set("$mindustryVersion")
+    runtimeVersion.set("$mindustryVersion")
+    platforms.add(ModPlatform.DESKTOP)
 }
 
 //java 8 backwards compatibility flag
@@ -43,4 +56,10 @@ jar{
     from(rootDir){
         include "plugin.json"
     }
+}
+
+
+tasks.runMindustryServer {
+    mods.setFrom(tasks.jar, project.file("./build/libs/mods/OlupisDesktop.jar"))
+
 }
