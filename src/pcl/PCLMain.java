@@ -131,7 +131,7 @@ public class PCLMain extends Plugin{
 
     public Floor getOre(int x, int y, int id){
         Tile t = Vars.world.tile(x, y);
-        if(t.overlay() == air) return t.asFloor();
+        if(t.overlay() == air) return air.asFloor();
         if(id == -1 || oreIndex[id].size <= 0) return t.overlay();
 
 
