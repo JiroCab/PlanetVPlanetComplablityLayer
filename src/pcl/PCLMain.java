@@ -1,14 +1,11 @@
 package pcl;
 
 import arc.*;
-import arc.math.*;
-import arc.math.geom.*;
 import arc.struct.*;
 import arc.util.*;
 import arc.util.Timer;
 import mindustry.*;
 import mindustry.content.*;
-import mindustry.core.*;
 import mindustry.ctype.*;
 import mindustry.game.*;
 import mindustry.game.EventType.*;
@@ -36,13 +33,18 @@ public class PCLMain extends Plugin{
     public Seq<Block> blockBlacklist = new Seq();
     public Rules[] rules;
     public Seq<Block> oreDexFloor;
+    public HashMap<String, Integer>plyIndex = new HashMap<>();
+
+    public int defPlanet = 0;
 
 
 
     //called when game initializes
     @Override
     public void init(){
-        Events.on(WorldLoadEvent.class, e -> updateRuleSets());
+        Events.on(WorldLoadEvent.class, e -> {
+            Timer.schedule(this::updateRuleSets, 0.1f * Time.toSeconds, 0, 1);
+        });
 
         Events.on(ServerLoadEvent.class, event -> {
             buildPlanetConetent();
@@ -51,7 +53,7 @@ public class PCLMain extends Plugin{
         Events.run(EventType.Trigger.update, () -> {
             for(Unit unit : Groups.unit){
                 if(unit.spawnedByCore) continue;
-                if(unit.isFlying() && !unit.moving()) continue;
+                if(unit.isFlying() && unit.moving()) continue;
 
                 int pla = -1;
                 for(int i = 0; i < Vars.content.planets().size; i++){
@@ -62,7 +64,7 @@ public class PCLMain extends Plugin{
                 }
 
                 Tile t = unit.tileOn();
-                if(t.floor() == null) continue;
+                if(t == null || t.floor() == null) continue;
                 float x = t.x, y = t.y, size = (unit.hitSize /16f);
 
                 int x2 = Math.round(x + size),
@@ -79,6 +81,9 @@ public class PCLMain extends Plugin{
             }
         });
 
+        Events.on(PlayerJoin.class, event -> {
+            setPlayerPlanet(event.player, plyIndex.getOrDefault(event.player.uuid(), defPlanet));
+        });
 
         Events.on(BlockBuildEndEvent.class, event -> {
             if(event.tile == null) return;
@@ -137,7 +142,8 @@ public class PCLMain extends Plugin{
 
         if(t.block() != air && t.build == null){
             if(oreDexFloor.contains(t.block())){
-                Block o = oreIndex[id].get(oreDexFloor.indexOf(t.block()));
+                int dex = oreDexFloor.indexOf(t.block());
+                Block o = dex >= oreIndex[id].size ? t.overlay() : oreIndex[id].get(dex);
                 if(o == air || o == space || o == empty) return t.overlay();
                 else return o.asFloor();
             }
@@ -352,8 +358,8 @@ public class PCLMain extends Plugin{
     }
 
     public void  updateRuleSets(){
-        Timer.schedule(() ->{
             rules = new Rules[Vars.content.planets().size + 1];
+            defPlanet = Vars.content.planets().indexOf(Vars.state.rules.planet);
 
             for(int i = 0; i < Vars.content.planets().size; i++){
                 rules[i] = Vars.state.rules.copy();
@@ -365,20 +371,50 @@ public class PCLMain extends Plugin{
                 }
                 rules[i].planet = Vars.content.planets().get(i);
             }
-        }, 0.1f * Time.toSeconds, 0, 1);
+
 
     }
 
     //register commands that run on the server
     @Override
     public void registerServerCommands(CommandHandler handler){
+        handler.register("pcl", "[syntax]","PCL related commands, use with no arguments for syntax", args -> {
+            if(args.length == 0) {
+                StringBuilder owo = new StringBuilder();
+                owo.append("usage:\n");
+                owo.append(" -r  | Reload rules index to  current rules\n");
+                //owo.append(" -d <planet> | Set the default planet\n"); //todo
+                owo.append(" -d | list current default planet \n");
+                owo.append(" -p | Lists all players and their planer\n");
+                Log.info(owo.toString());
+                return;
+            }
 
+            if(Objects.equals(args[0], "-r")){
+                updateRuleSets();
+                Log.info("rules index updated");
+                return;
+            } else if(Objects.equals(args[0], "-p")){
+                Log.info(getPlyPlanetList());
+                return;
+            } else if(Objects.equals(args[0], "-d")){
+                Vars.content.planets().indexOf(Vars.state.rules.planet);
+                return;
+            }
+
+            Log.err("invalid syntax");
+        });
     }
 
     //register commands that player can invoke in-game
     @Override
     public void registerClientCommands(CommandHandler handler){
-        handler.<Player>register("planet", "<planet/-l...>", "Set your blocks to a certain planet! -l instead for list ", (args, player) -> {
+        handler.<Player>register("planet", "[planet/-l...]", "Set your blocks to a certain planet! -l instead for list ", (args, player) -> {
+            if(args.length == 0) {
+                player.sendMessage("[scarlet]You must specify a planet! or use -l to list out planets");
+                return;
+            }
+
             if(args[0].isEmpty()){
                 player.sendMessage(args[0] + " is not a planet!");
                 return;
@@ -388,29 +424,68 @@ public class PCLMain extends Plugin{
                 StringBuilder owo = new StringBuilder();
                 owo.append(" Planets available:\n");
                 for(Planet planet : Vars.content.planets()){
-                    if(!planet.accessible) continue;
+
+                    if(!planet.accessible && planet != Planets.sun) continue;
                     String n = planet.name;
+
                     if(planet.isModded()){
                         owo.append("  - ").append(n.replaceFirst(planet.minfo.mod.name + "-", "")).append(" [lightgray]/ ").append(n).append("[]");
 
                     }else owo.append("  - ").append(n);
-
+                    if(planet == Planets.sun) owo.append(" / [lightgray]regular rules[]");
 
                     owo.append("\n");
                 }
+                if(player.admin) owo.append("[lightgray]   > la to list admin commands");
                 player.sendMessage(owo.toString());
                 return;
             }
+
+            boolean setPlanet = false;
+            if(player.admin){
+                if(args[0].equals("-la")){
+                    StringBuilder owo = new StringBuilder();
+                    owo.append("[accent] -la []| List admin commands\n");
+                    owo.append("[accent] -r  []| Reload rules index to  current rules\n");
+                    owo.append("[accent] -d <planet> []| List / Sets the default planet\n");
+                    owo.append("[accent] -p []| Lists all players and their planer\n");
+                    player.sendMessage(owo.toString());
+                    return;
+
+                }else if(args[0].equals("-r")){
+                    updateRuleSets();
+                    String raw = "[accent]<PCL> " + Vars.netServer.chatFormatter.format(player, " updated rules sets!");
+                    Groups.player.each(Player::admin, a -> a.sendMessage(raw, player, args[0]));
+                    return;
+
+                }else if(args[0].startsWith("-d")){
+                    if(args[0].replace("-d", "").isEmpty()){
+                        player.sendMessage("[accent]<PCL> " + Vars.content.planets().get(defPlanet)+ " is the default planet!");
+                        return;
+                    }else {
+                        setPlanet = true;
+                    }
+
+
+                } else if(args[0].equals("-p")){
+                    player.sendMessage("[accent]<PCL> player's planet list: \n[]" + getPlyPlanetList());
+                    return;
+
+                }
+            }
             int out = -1;
+            String in = args[0];
+            if(setPlanet) in = in.replace("-d ", "");
+
 
             for(Planet planet : Vars.content.planets()){
-                if(planet.name.equals(args[0])){
+                if(planet.name.equals(in)){
                     out = planet.id;
                     break;
                 }else {
                     if(!planet.isModded()) continue;
                     String n = planet.name;
-                    if(args[0].equals(n.replaceFirst(planet.minfo.mod.name + "-",""))){
+                    if(in.equals(n.replaceFirst(planet.minfo.mod.name + "-",""))){
                         out = planet.id;
                         break;
                     }
@@ -418,14 +493,32 @@ public class PCLMain extends Plugin{
             }
 
             if(out == -1) {
-                player.sendMessage(args[0] + " is not a planet!");
+                player.sendMessage(in + " is not a planet!");
                 return;
             }
 
-            Rules r = rules[out];
-            r.env = Vars.state.rules.env;
-            Call.setRules(player.con, r);
+            if(setPlanet){
+                player.sendMessage("[accent]" + Vars.content.planets().get(out).name + " is set as the default planet!");
+                defPlanet = out;
+            }else {
+                setPlayerPlanet(player, out);
+            }
         });
+    }
+
+    public void setPlayerPlanet (Player player, int out){
+        Rules r = rules[out];
+        r.env = Vars.state.rules.env;
+        Call.setRules(player.con, r);
+        plyIndex.put(player.uuid(), out);
+    }
+
+    public String getPlyPlanetList(){
+        StringBuilder owo = new StringBuilder();
+        for(Player pl : Groups.player){
+            if(plyIndex.containsKey(pl.uuid())) owo.append("[white] ").append(Vars.content.planets().get(plyIndex.get(pl.uuid()))).append(" -[] ").append(pl.name).append("\n");
+        }
+        return owo.toString();
     }
 }
 
